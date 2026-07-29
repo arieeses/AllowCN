@@ -76,18 +76,31 @@ set_conf() { # key value file
 
 detect_ssh_ip() { [ -n "${SSH_CONNECTION:-}" ] && echo "${SSH_CONNECTION%% *}"; }
 
+# Robustly find the TCP port(s) sshd actually listens on — independent of the
+# environment (works under sudo and on non-SSH consoles). Returns a comma list.
+detect_ssh_ports() {
+  local ports="" sshd_bin
+  sshd_bin="$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)"
+  [ -x "$sshd_bin" ] && ports="$("$sshd_bin" -T 2>/dev/null | awk '/^port /{print $2}')"
+  [ -z "$ports" ] && [ -r /etc/ssh/sshd_config ] && \
+    ports="$(awk 'tolower($1)=="port"{print $2}' /etc/ssh/sshd_config)"
+  [ -z "$ports" ] && command -v ss >/dev/null 2>&1 && \
+    ports="$(ss -H -tlnp 2>/dev/null | awk '/"sshd"/{print $4}' | sed 's/.*://')"
+  [ -n "${SSH_CONNECTION:-}" ] && ports="$ports $(echo "$SSH_CONNECTION" | awk '{print $4}')"
+  ports="$(printf '%s\n' $ports | grep -E '^[0-9]+$' | sort -un | paste -sd, -)"
+  echo "${ports:-22}"
+}
+
 # ---------------------------------------------------------------------------
 do_install() {
   echo -e "${B}== 安装 / 重装 AllowCN ==${N}"
   echo -e "${D}规则:整机所有端口仅大陆可访问,SSH 端口对所有来源开放(防锁死)。${N}"
-  local extra sched="30 4 * * *" ssh_ip ssh_port="22" ans
+  local extra sched="30 4 * * *" ssh_ip ssh_port ans
 
-  # 自动探测 SSH 端口(SSH_CONNECTION 第 4 段 = 服务器端口)
-  if [ -n "${SSH_CONNECTION:-}" ]; then
-    ssh_port="$(echo "$SSH_CONNECTION" | awk '{print $4}')"
-    [ -z "$ssh_port" ] && ssh_port="22"
-  fi
-  read -rp "SSH 端口(对所有来源放行,防锁死)[默认 ${ssh_port}]: " ans
+  # 自动探测 sshd 实际监听端口(问 sshd 本身,不依赖环境变量)
+  ssh_port="$(detect_ssh_ports)"
+  info "检测到 SSH 监听端口:${ssh_port}"
+  read -rp "确认对所有来源放行的 SSH 端口(防锁死)[${ssh_port}]: " ans
   [ -n "$ans" ] && ssh_port="$ans"
 
   # 可选:把当前 SSH 来源 IP 也加进永久白名单(双保险)

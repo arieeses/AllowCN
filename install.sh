@@ -101,23 +101,36 @@ cset() { # key value — set or append in $CONF
   fi
 }
 
+# Robustly find the TCP port(s) sshd listens on (works under sudo / non-SSH consoles).
+detect_ssh_ports() {
+  local ports="" sshd_bin
+  sshd_bin="$(command -v sshd 2>/dev/null || echo /usr/sbin/sshd)"
+  [ -x "$sshd_bin" ] && ports="$("$sshd_bin" -T 2>/dev/null | awk '/^port /{print $2}')"
+  [ -z "$ports" ] && [ -r /etc/ssh/sshd_config ] && \
+    ports="$(awk 'tolower($1)=="port"{print $2}' /etc/ssh/sshd_config)"
+  [ -z "$ports" ] && command -v ss >/dev/null 2>&1 && \
+    ports="$(ss -H -tlnp 2>/dev/null | awk '/"sshd"/{print $4}' | sed 's/.*://')"
+  [ -n "${SSH_CONNECTION:-}" ] && ports="$ports $(echo "$SSH_CONNECTION" | awk '{print $4}')"
+  ports="$(printf '%s\n' $ports | grep -E '^[0-9]+$' | sort -un | paste -sd, -)"
+  echo "${ports:-22}"
+}
+
 # shellcheck disable=SC1090
 . "$CONF"
 
-# Anti-lockout: the whole machine is mainland-only, so make sure the port you are
-# SSH'd in on stays open to all sources, and add your current source IP too.
-if [ -n "${SSH_CONNECTION:-}" ]; then
+# Anti-lockout: the whole machine is mainland-only, so make sure every port sshd
+# listens on stays open to all sources, and add the current source IP too.
+detected_ssh_ports="$(detect_ssh_ports)"
+for _p in ${detected_ssh_ports//,/ }; do
+  printf ',%s,' "${ALWAYS_OPEN_TCP_PORTS:-}" | grep -q ",${_p}," && continue
+  ALWAYS_OPEN_TCP_PORTS="${ALWAYS_OPEN_TCP_PORTS:+$ALWAYS_OPEN_TCP_PORTS,}$_p"
+done
+cset ALWAYS_OPEN_TCP_PORTS "$ALWAYS_OPEN_TCP_PORTS"
+warn "anti-lockout: SSH port(s) [${detected_ssh_ports}] kept open to all sources"
+if [ -z "${ALLOW_EXTRA:-}" ] && [ -n "${SSH_CONNECTION:-}" ]; then
   ssh_ip="${SSH_CONNECTION%% *}"
-  ssh_port="$(echo "$SSH_CONNECTION" | awk '{print $4}')"
-  if [ -n "$ssh_port" ] && ! printf ',%s,' "${ALWAYS_OPEN_TCP_PORTS:-}" | grep -q ",${ssh_port},"; then
-    ALWAYS_OPEN_TCP_PORTS="${ALWAYS_OPEN_TCP_PORTS:+$ALWAYS_OPEN_TCP_PORTS,}$ssh_port"
-    cset ALWAYS_OPEN_TCP_PORTS "$ALWAYS_OPEN_TCP_PORTS"
-    warn "anti-lockout: kept your SSH port ${ssh_port} open to all sources"
-  fi
-  if [ -z "${ALLOW_EXTRA:-}" ]; then
-    ALLOW_EXTRA="$ssh_ip"; cset ALLOW_EXTRA "$ssh_ip"
-    warn "anti-lockout: auto-added your source IP ${ssh_ip} to ALLOW_EXTRA"
-  fi
+  ALLOW_EXTRA="$ssh_ip"; cset ALLOW_EXTRA "$ssh_ip"
+  warn "anti-lockout: auto-added your source IP ${ssh_ip} to ALLOW_EXTRA"
 fi
 
 warn "=============================================================="
