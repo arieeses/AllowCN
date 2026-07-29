@@ -23,26 +23,52 @@ cron ──> allowcn.sh
 
 `iptables` 链 `ALLOWCN` 的判定顺序:`lo 回环放行` → `已建立连接放行` → `源 IP 在大陆集合内 ACCEPT` → `其余 DROP`。只有配置里 `PROTECT_*_PORTS` 指定的端口会被送进该链,其它端口(含 SSH)完全不受影响。
 
-## 安装
+## 快速开始(交互式菜单)
 
-需要 root 的 Linux 服务器(Debian/Ubuntu、RHEL/CentOS/Rocky、Alpine 均可)。安装脚本会自动装 `ipset`、`iptables`、`python3`、`maxminddb`。
+需要 root 的 Linux 服务器(Debian/Ubuntu、RHEL/CentOS/Rocky、Alpine 均可)。一条命令拉起菜单,自动装依赖(`ipset`、`iptables`、`python3`、`maxminddb`):
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/arieeses/AllowCN/main/menu.sh)
+```
+
+菜单长这样:
+
+```
+╔══════════════════════════════════════════════╗
+║   AllowCN — 仅允许中国大陆访问的防火墙        ║
+║   数据源: P3TERX/GeoLite.mmdb · iptables+ipset ║
+╚══════════════════════════════════════════════╝
+   状态: 未安装    配置: /etc/allowcn/allowcn.conf
+
+   1) 安装 / 重装
+   2) 立即更新 IP 数据并应用规则
+   3) 修改配置(端口 / 白名单 / 拦截动作)
+   4) 更改自动更新周期
+   5) 查看运行状态
+   6) 暂停规则(保留安装)
+   7) 卸载
+   0) 退出
+```
+
+选 **1 安装** 时会引导你设置:保护端口、自动更新周期,并**自动检测你的 SSH 来源 IP 询问是否加入白名单**,从源头避免把自己锁在门外。
+
+也可以先克隆再运行菜单:
+
+```bash
+git clone https://github.com/arieeses/AllowCN.git
+cd AllowCN && sudo ./menu.sh
+```
+
+## 无人值守 / 脚本化安装
+
+不想走菜单、想直接一把装好并应用规则:
 
 ```bash
 git clone https://github.com/arieeses/AllowCN.git
 cd AllowCN
-sudo ./install.sh
-```
-
-自定义更新时间(cron 表达式,默认每天 04:30):
-
-```bash
-sudo ./install.sh --schedule "0 3 * * *"
-```
-
-只安装、暂不应用规则:
-
-```bash
-sudo ./install.sh --no-run
+sudo ./install.sh                        # 默认每天 04:30 更新,保护 80,443
+sudo ./install.sh --schedule "0 3 * * *" # 自定义 cron 周期
+sudo ./install.sh --no-run               # 只安装,暂不应用
 ```
 
 ## 配置

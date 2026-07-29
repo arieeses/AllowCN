@@ -16,12 +16,13 @@ LOG="/var/log/allowcn.log"
 
 SCHEDULE="30 4 * * *"
 RUN_NOW=1
-for arg in "$@"; do
-  case "$arg" in
-    --schedule) shift; SCHEDULE="${1:?missing cron expression}"; shift || true ;;
-    --schedule=*) SCHEDULE="${arg#*=}" ;;
-    --no-run) RUN_NOW=0 ;;
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --schedule) SCHEDULE="${2:?missing cron expression}"; shift 2 ;;
+    --schedule=*) SCHEDULE="${1#*=}"; shift ;;
+    --no-run) RUN_NOW=0; shift ;;
     -h|--help) grep '^#' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown argument: $1" ;;
   esac
 done
 
