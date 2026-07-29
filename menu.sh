@@ -79,67 +79,41 @@ detect_ssh_ip() { [ -n "${SSH_CONNECTION:-}" ] && echo "${SSH_CONNECTION%% *}"; 
 # ---------------------------------------------------------------------------
 do_install() {
   echo -e "${B}== 安装 / 重装 AllowCN ==${N}"
-  local def_ports="80,443" ports extra sched="30 4 * * *" ssh_ip ans all="0" scope_desc
+  echo -e "${D}规则:整机所有端口仅大陆可访问,SSH 端口对所有来源开放(防锁死)。${N}"
+  local extra sched="30 4 * * *" ssh_ip ssh_port="22" ans
 
-  echo "保护范围:"
-  echo "  1) 所有端口(整机仅大陆可访问,含 SSH,默认)"
-  echo "  2) 仅指定端口(如 80,443,SSH 不受影响)"
-  read -rp "选择 [1]: " ans
-  case "${ans:-1}" in 2) all="0" ;; *) all="1" ;; esac
-
-  if [ "$all" = "1" ]; then
-    ports="$def_ports"   # 保留但不生效
-    scope_desc="所有端口(整机)"
-    info "注意:22 端口(SSH)默认仍对所有来源开放,不会被锁死。"
-    info "      如果你的 SSH 不在 22,装完请改配置 ALWAYS_OPEN_TCP_PORTS。"
-  else
-    read -rp "要仅放行大陆访问的 TCP 端口 [默认 ${def_ports}]: " ports
-    ports="${ports:-$def_ports}"
-    scope_desc="端口 ${ports}"
+  # 自动探测 SSH 端口(SSH_CONNECTION 第 4 段 = 服务器端口)
+  if [ -n "${SSH_CONNECTION:-}" ]; then
+    ssh_port="$(echo "$SSH_CONNECTION" | awk '{print $4}')"
+    [ -z "$ssh_port" ] && ssh_port="22"
   fi
+  read -rp "SSH 端口(对所有来源放行,防锁死)[默认 ${ssh_port}]: " ans
+  [ -n "$ans" ] && ssh_port="$ans"
 
-  # 自动把当前 SSH 来源 IP 加入白名单,避免锁死
+  # 可选:把当前 SSH 来源 IP 也加进永久白名单(双保险)
   ssh_ip="$(detect_ssh_ip)"
   extra=""
   if [ -n "$ssh_ip" ]; then
-    if [ "$all" = "1" ]; then
-      warn "全端口模式下必须放行你的登录 IP,否则会被锁在门外。"
-      read -rp "把当前 SSH 来源 IP ${ssh_ip} 加入永久白名单? [强烈建议 Y/n]: " ans
-    else
-      read -rp "检测到你的 SSH 来源 IP 为 ${ssh_ip},加入永久白名单? [Y/n]: " ans
-    fi
+    read -rp "把当前来源 IP ${ssh_ip} 也加入永久白名单? [Y/n]: " ans
     case "${ans:-Y}" in [Nn]*) : ;; *) extra="$ssh_ip" ;; esac
-  elif [ "$all" = "1" ]; then
-    warn "未检测到 SSH_CONNECTION(可能非 SSH 会话)。全端口模式下请务必手动填入你的管理 IP!"
   fi
   read -rp "额外永久放行的网段(空格分隔,可留空)[$extra]: " ans
   [ -n "$ans" ] && extra="$ans"
-
-  if [ "$all" = "1" ] && [ -z "$extra" ]; then
-    warn "白名单为空 —— 你将依赖「22 端口对所有来源开放」来保证 SSH 可达。"
-    warn "若你的 SSH 端口不是 22,请务必装完立即设置 ALWAYS_OPEN_TCP_PORTS 或 ALLOW_EXTRA。"
-  fi
 
   read -rp "自动更新周期(cron 表达式)[默认每天 04:30 → ${sched}]: " ans
   [ -n "$ans" ] && sched="$ans"
 
   echo
-  warn "确认配置:保护范围=${scope_desc}  白名单=[${extra:-无}]  周期=[${sched}]"
+  warn "确认:整机仅大陆 + SSH端口=${ssh_port}对所有来源  白名单=[${extra:-无}]  周期=[${sched}]"
   read -rp "开始安装? [Y/n]: " ans
   case "${ans:-Y}" in [Nn]*) warn "已取消"; return ;; esac
 
-  # 先装(生成默认配置与文件),再按选择覆盖配置并应用
   bash "$REPO/install.sh" --schedule "$sched" --no-run || { err "安装失败"; return; }
-  set_conf PROTECT_ALL_PORTS "$all" "$CONF"
-  set_conf PROTECT_TCP_PORTS "$ports" "$CONF"
+  set_conf ALWAYS_OPEN_TCP_PORTS "$ssh_port" "$CONF"
   set_conf ALLOW_EXTRA "$extra" "$CONF"
   info "应用规则中..."
   "$LIB" 2>&1 | tee -a "$LOG"
-  if [ "$all" = "1" ]; then
-    info "完成。整机所有端口现在仅大陆 IP(及白名单)可访问。"
-  else
-    info "完成。仅大陆 IP 可访问端口 ${ports}。"
-  fi
+  info "完成。整机所有端口仅大陆可访问,SSH(端口 ${ssh_port})对所有来源开放。"
 }
 
 do_update() {
@@ -159,19 +133,11 @@ do_edit_conf() {
       "${EDITOR:-$(command -v nano || command -v vi)}" "$CONF"
       ;;
     *)
-      local allp ports openp action ipv6 extra ans
-      read -rp "保护所有端口 1/0 [$(get_conf PROTECT_ALL_PORTS)]: " allp
-      read -rp "保护 TCP 端口(仅 PROTECT_ALL_PORTS=0 时生效) [$(get_conf PROTECT_TCP_PORTS)]: " ports
-      read -rp "无条件放行的 TCP 端口(对所有来源,如 SSH) [$(get_conf ALWAYS_OPEN_TCP_PORTS)]: " openp
+      local openp action ipv6 extra ans
+      read -rp "SSH/无条件放行的 TCP 端口(对所有来源) [$(get_conf ALWAYS_OPEN_TCP_PORTS)]: " openp
       read -rp "拦截动作 DROP/REJECT [$(get_conf BLOCK_ACTION)]: " action
       read -rp "启用 IPv6 1/0 [$(get_conf ENABLE_IPV6)]: " ipv6
       read -rp "永久白名单网段 [$(get_conf ALLOW_EXTRA)]: " extra
-      if [ "$allp" = "1" ]; then
-        local cur_extra="${extra:-$(get_conf ALLOW_EXTRA)}"
-        [ -z "$cur_extra" ] && warn "⚠ 开启全端口但白名单为空,可能把自己锁死!建议先填管理 IP。"
-      fi
-      [ -n "$allp" ]   && set_conf PROTECT_ALL_PORTS "$allp" "$CONF"
-      [ -n "$ports" ]  && set_conf PROTECT_TCP_PORTS "$ports" "$CONF"
       [ -n "$openp" ]  && set_conf ALWAYS_OPEN_TCP_PORTS "$openp" "$CONF"
       [ -n "$action" ] && set_conf BLOCK_ACTION "$action" "$CONF"
       [ -n "$ipv6" ]   && set_conf ENABLE_IPV6 "$ipv6" "$CONF"

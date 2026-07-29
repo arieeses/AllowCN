@@ -93,38 +93,42 @@ chmod 0644 "$CRON"
 touch "$LOG"
 
 # ---- safety banner ---------------------------------------------------------
+cset() { # key value — set or append in $CONF
+  if grep -qE "^$1=" "$CONF"; then
+    sed -i "s|^$1=.*|$1=\"$2\"|" "$CONF"
+  else
+    echo "$1=\"$2\"" >> "$CONF"
+  fi
+}
+
 # shellcheck disable=SC1090
 . "$CONF"
 
-# Anti-lockout: default is whole-machine mode, so if the allowlist is empty and
-# we can see the current SSH client IP, auto-add it before applying any rules.
-if [ "${PROTECT_ALL_PORTS:-0}" = "1" ] && [ -z "${ALLOW_EXTRA:-}" ] && [ -n "${SSH_CONNECTION:-}" ]; then
+# Anti-lockout: the whole machine is mainland-only, so make sure the port you are
+# SSH'd in on stays open to all sources, and add your current source IP too.
+if [ -n "${SSH_CONNECTION:-}" ]; then
   ssh_ip="${SSH_CONNECTION%% *}"
-  if grep -qE '^ALLOW_EXTRA=' "$CONF"; then
-    sed -i "s|^ALLOW_EXTRA=.*|ALLOW_EXTRA=\"${ssh_ip}\"|" "$CONF"
-  else
-    echo "ALLOW_EXTRA=\"${ssh_ip}\"" >> "$CONF"
+  ssh_port="$(echo "$SSH_CONNECTION" | awk '{print $4}')"
+  if [ -n "$ssh_port" ] && ! printf ',%s,' "${ALWAYS_OPEN_TCP_PORTS:-}" | grep -q ",${ssh_port},"; then
+    ALWAYS_OPEN_TCP_PORTS="${ALWAYS_OPEN_TCP_PORTS:+$ALWAYS_OPEN_TCP_PORTS,}$ssh_port"
+    cset ALWAYS_OPEN_TCP_PORTS "$ALWAYS_OPEN_TCP_PORTS"
+    warn "anti-lockout: kept your SSH port ${ssh_port} open to all sources"
   fi
-  ALLOW_EXTRA="$ssh_ip"
-  warn "anti-lockout: auto-added your SSH source IP ${ssh_ip} to ALLOW_EXTRA"
+  if [ -z "${ALLOW_EXTRA:-}" ]; then
+    ALLOW_EXTRA="$ssh_ip"; cset ALLOW_EXTRA "$ssh_ip"
+    warn "anti-lockout: auto-added your source IP ${ssh_ip} to ALLOW_EXTRA"
+  fi
 fi
 
 warn "=============================================================="
-if [ "${PROTECT_ALL_PORTS:-0}" = "1" ]; then
-  warn " Scope : ALL ports — only mainland-China IPs reach this box (incl. SSH)"
-else
-  warn " Protected TCP ports : ${PROTECT_TCP_PORTS:-<none>}"
-  warn " Protected UDP ports : ${PROTECT_UDP_PORTS:-<none>}"
-  warn " SSH (port 22) is NOT protected — you stay reachable."
+warn " Scope        : ALL ports — only mainland-China IPs reach this box"
+warn " Always-open  : ${ALWAYS_OPEN_TCP_PORTS:-<none>}  (any source — e.g. SSH)"
+warn " Extra allow  : ${ALLOW_EXTRA:-<none>}"
+if [ -z "${ALWAYS_OPEN_TCP_PORTS:-}" ] && [ -z "${ALLOW_EXTRA:-}" ]; then
+  warn " ⚠ NO always-open ports and an EMPTY allowlist. A non-mainland login will"
+  warn "   be locked out. Set ALWAYS_OPEN_TCP_PORTS (your SSH port) in $CONF now."
 fi
-warn " Extra allow CIDRs   : ${ALLOW_EXTRA:-<none>}"
-warn " Always-open TCP     : ${ALWAYS_OPEN_TCP_PORTS:-<none>}  (any source — e.g. SSH)"
-if [ "${PROTECT_ALL_PORTS:-0}" = "1" ] && [ -z "${ALWAYS_OPEN_TCP_PORTS:-}" ] && [ -z "${ALLOW_EXTRA:-}" ]; then
-  warn " ⚠ WHOLE-MACHINE mode with NO always-open ports and an EMPTY allowlist."
-  warn "   A non-mainland login will be locked out. Set ALWAYS_OPEN_TCP_PORTS (e.g."
-  warn "   your SSH port) or ALLOW_EXTRA in $CONF and re-run 'allowcn' NOW."
-fi
-warn " Edit $CONF then re-run 'allowcn' to change scope."
+warn " Edit $CONF then re-run 'allowcn' to change settings."
 warn "=============================================================="
 
 if [ "$RUN_NOW" -eq 1 ]; then

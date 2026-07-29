@@ -2,27 +2,14 @@
 # Shell syntax (this file is sourced by allowcn.sh). Restart is not needed;
 # the next scheduled/manual run picks up changes.
 
-# Protect EVERY port on the whole machine (1 = yes). This is the DEFAULT: only
+# AllowCN protects the WHOLE machine: every port on every protocol only accepts
 # mainland-China source IPs (plus ALLOW_EXTRA, loopback, and already-established
-# connections) can reach ANY port — including SSH. Overrides PROTECT_TCP/UDP_PORTS.
-# ⚠ If you connect from a non-mainland IP, put it in ALLOW_EXTRA first (the
-#   installer auto-adds your current SSH IP), or you will be locked out.
-# Set to 0 to fall back to protecting only the specific ports listed below.
-PROTECT_ALL_PORTS="1"
-
-# TCP ports that will ONLY accept mainland-China source IPs (used only when
-# PROTECT_ALL_PORTS=0). Everything else on these ports is dropped. Leave SSH (22)
-# OUT of this list unless you always connect from a mainland-China IP.
-PROTECT_TCP_PORTS="80,443"
-
-# UDP ports to protect the same way (e.g. "443" for HTTP/3/QUIC). Empty = none.
-PROTECT_UDP_PORTS=""
+# connections). The only exception is the always-open ports below.
 
 # TCP ports that stay open to EVERY source, exempt from the mainland-only filter.
-# Default keeps SSH (22) reachable worldwide so you can never be locked out — even
-# in whole-machine mode. Comma-separated. Empty = no exemptions (NOT recommended
-# unless your SSH IP is in ALLOW_EXTRA). If your SSH runs on a custom port, list it
-# here (e.g. "22,2222").
+# Default keeps SSH (22) reachable worldwide so you can never be locked out.
+# Comma-separated. If your SSH runs on a custom port, set it here (e.g. "22,2222").
+# Empty = no exemptions (only do this if your SSH IP is in ALLOW_EXTRA).
 ALWAYS_OPEN_TCP_PORTS="22"
 
 # What to do with blocked traffic: DROP (silent) or REJECT (send refusal).

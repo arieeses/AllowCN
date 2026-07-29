@@ -16,9 +16,6 @@ STATE_DIR="/var/lib/allowcn"
 # ---- defaults (overridable via the config file) ----------------------------
 MMDB_URL="https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-Country.mmdb"
 MMDB_URL_FALLBACK="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
-PROTECT_ALL_PORTS="1"        # 1 = 整机所有端口仅放行大陆(默认;会覆盖下面的端口设置)
-PROTECT_TCP_PORTS="80,443"
-PROTECT_UDP_PORTS=""
 ALWAYS_OPEN_TCP_PORTS="22"   # 无条件对所有来源放行的 TCP 端口(默认放行 SSH,防锁死)
 BLOCK_ACTION="DROP"          # DROP or REJECT
 ENABLE_IPV6="1"
@@ -147,7 +144,7 @@ del_hooks() {
 }
 
 apply_rules() {
-  local ipt="$1" set="$2" lo="$3"
+  local ipt="$1" set="$2"
   # (re)build the decision chain
   $ipt -N "$CHAIN" 2>/dev/null || $ipt -F "$CHAIN"
   $ipt -A "$CHAIN" -i lo -j ACCEPT
@@ -159,21 +156,10 @@ apply_rules() {
   $ipt -A "$CHAIN" -m set --match-set "$set" src -j ACCEPT
   $ipt -A "$CHAIN" -j "$BLOCK_ACTION"
 
-  # (re)hook into INPUT, removing any stale hooks first
+  # catch-all: every inbound packet on every port/protocol goes through ALLOWCN
   del_hooks "$ipt"
-  if [ "${PROTECT_ALL_PORTS:-0}" = "1" ]; then
-    # catch-all: every inbound packet on every port/protocol goes through ALLOWCN
-    $ipt -I INPUT -j "$CHAIN"
-    log "$ipt rules applied (ALL ports mainland-only, always-open tcp=[${ALWAYS_OPEN_TCP_PORTS:-none}], block=$BLOCK_ACTION)"
-  else
-    if [ -n "$PROTECT_TCP_PORTS" ]; then
-      $ipt -I INPUT -p tcp -m multiport --dports "$PROTECT_TCP_PORTS" -j "$CHAIN"
-    fi
-    if [ -n "$PROTECT_UDP_PORTS" ]; then
-      $ipt -I INPUT -p udp -m multiport --dports "$PROTECT_UDP_PORTS" -j "$CHAIN"
-    fi
-    log "$ipt rules applied (tcp=[$PROTECT_TCP_PORTS] udp=[$PROTECT_UDP_PORTS] block=$BLOCK_ACTION)"
-  fi
+  $ipt -I INPUT -j "$CHAIN"
+  log "$ipt rules applied (all ports mainland-only, always-open tcp=[${ALWAYS_OPEN_TCP_PORTS:-none}], block=$BLOCK_ACTION)"
 }
 
 # ---------------------------------------------------------------------------
@@ -187,12 +173,12 @@ esac
 
 # shellcheck disable=SC2046
 load_set "$SET4" inet "$V4FILE" $(extras_for 4)
-apply_rules iptables "$SET4" lo
+apply_rules iptables "$SET4"
 
 if [ "$ENABLE_IPV6" = "1" ] && command -v ip6tables >/dev/null 2>&1; then
   # shellcheck disable=SC2046
   load_set "$SET6" inet6 "$V6FILE" $(extras_for 6)
-  apply_rules ip6tables "$SET6" lo
+  apply_rules ip6tables "$SET6"
 else
   log "IPv6 enforcement disabled or ip6tables missing; skipping"
 fi
