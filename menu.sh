@@ -16,6 +16,7 @@ CONF_EXAMPLE_NAME="allowcn.conf.example"
 CRON="/etc/cron.d/allowcn"
 LOG="/var/log/allowcn.log"
 LIB="/usr/local/lib/allowcn/allowcn.sh"
+NETOPT="/usr/local/lib/allowcn/netopt.sh"
 
 # ---- colors ----------------------------------------------------------------
 if [ -t 1 ]; then
@@ -192,6 +193,34 @@ do_disable() {
   warn "已移除防火墙规则(所有来源均可访问)。选 2 可随时重新应用。"
 }
 
+do_netopt() {
+  # netopt.sh may exist without a full AllowCN install (menu also runs from checkout)
+  local np="$NETOPT"
+  [ -f "$np" ] || np="$REPO/src/netopt.sh"
+  [ -f "$np" ] || { warn "找不到 netopt.sh"; return; }
+  while true; do
+    echo -e "${B}== 网络内核优化(集成 tcp-dashboard 的调优项,原生实现)==${N}"
+    echo -e "${D}  BBR+FQ / 生产级 sysctl / 网卡多队列 / IPv4 优先 —— 参数均为标准内核项${N}"
+    echo
+    bash "$np" status 2>/dev/null
+    echo
+    echo -e "   ${G}1)${N} 一键开启所有优化"
+    echo -e "   ${G}2)${N} 回退所有优化(恢复内核默认)"
+    echo -e "   ${G}3)${N} 刷新状态"
+    echo -e "   ${D}0)${N} 返回主菜单"
+    echo
+    read -rp "请选择 [0-3]: " c
+    case "$c" in
+      1) echo; bash "$np" enable-all; pause ;;
+      2) echo; bash "$np" rollback;  pause ;;
+      3) : ;;
+      0) return ;;
+      *) warn "无效选择"; sleep 1 ;;
+    esac
+    clear 2>/dev/null || true
+  done
+}
+
 do_uninstall() {
   echo -e "${B}== 卸载 AllowCN ==${N}"
   read -rp "同时删除缓存数据/配置/日志(--purge)? [y/N]: " ans
@@ -217,7 +246,8 @@ banner() {
   echo -e "   ${G}4)${N} 更改自动更新周期"
   echo -e "   ${G}5)${N} 查看运行状态"
   echo -e "   ${G}6)${N} 暂停规则(保留安装)"
-  echo -e "   ${R}7)${N} 卸载"
+  echo -e "   ${B}7)${N} 网络内核优化(BBR/调优/多队列,一键全开)"
+  echo -e "   ${R}8)${N} 卸载"
   echo -e "   ${D}0)${N} 退出"
   echo
 }
@@ -226,7 +256,7 @@ main() {
   locate_repo
   while true; do
     banner
-    read -rp "请选择 [0-7]: " choice
+    read -rp "请选择 [0-8]: " choice
     echo
     case "$choice" in
       1) do_install ;;
@@ -235,7 +265,8 @@ main() {
       4) do_schedule ;;
       5) do_status ;;
       6) do_disable ;;
-      7) do_uninstall ;;
+      7) do_netopt ;;
+      8) do_uninstall ;;
       0) exit 0 ;;
       *) warn "无效选择" ;;
     esac

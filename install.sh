@@ -68,6 +68,7 @@ log "installing files into $LIB_DIR and $CONF_DIR"
 mkdir -p "$LIB_DIR" "$CONF_DIR" /var/lib/allowcn
 install -m 0755 "$SRC_DIR/src/allowcn.sh"     "$LIB_DIR/allowcn.sh"
 install -m 0755 "$SRC_DIR/src/mmdb_to_cidr.py" "$LIB_DIR/mmdb_to_cidr.py"
+install -m 0755 "$SRC_DIR/src/netopt.sh"       "$LIB_DIR/netopt.sh"
 
 if [ -f "$CONF" ]; then
   log "keeping existing config at $CONF"

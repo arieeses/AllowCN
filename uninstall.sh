@@ -39,6 +39,11 @@ for s in allowcn4 allowcn6 allowcn4_tmp allowcn6_tmp; do
   ipset destroy "$s" 2>/dev/null || true
 done
 
+if [ "$PURGE" -eq 1 ] && [ -x "$LIB_DIR/netopt.sh" ]; then
+  log "rolling back network optimizations (netopt)"
+  "$LIB_DIR/netopt.sh" rollback || true
+fi
+
 log "removing cron, binaries and symlink"
 rm -f "$CRON" /usr/local/sbin/allowcn
 rm -rf "$LIB_DIR"

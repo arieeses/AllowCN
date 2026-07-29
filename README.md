@@ -46,7 +46,8 @@ bash <(curl -fsSL https://raw.githubusercontent.com/arieeses/AllowCN/main/menu.s
    4) 更改自动更新周期
    5) 查看运行状态
    6) 暂停规则(保留安装)
-   7) 卸载
+   7) 网络内核优化(BBR/调优/多队列,一键全开)
+   8) 卸载
    0) 退出
 ```
 
@@ -58,6 +59,25 @@ bash <(curl -fsSL https://raw.githubusercontent.com/arieeses/AllowCN/main/menu.s
 git clone https://github.com/arieeses/AllowCN.git
 cd AllowCN && sudo ./menu.sh
 ```
+
+## 网络内核优化(集成 tcp-dashboard 的调优)
+
+菜单 **7) 网络内核优化** 提供「一键开启所有」的内核网络调优,效果等价于 [tcp-dashboard](https://github.com/666shen/tcp-dashboard) 的全部优化项,但为**原生、可审计、非交互**的实现——不在运行时从任何远端域名拉取脚本执行:
+
+- **IPv4 优先解析**(`gai.conf`)—— 解决 IPv6 绕路导致的握手卡顿
+- **BBR + FQ 拥塞控制**
+- **生产级 sysctl / ulimit 调优**—— 缓冲区按内存 5% 动态分配、6w+ 并发、开启 ECN、MTU 探测、TFO、MSS Clamp 等
+- **网卡多队列(RPS/RFS)**—— 把软中断平摊到所有 CPU 核心
+
+命令行也可直接用:
+
+```bash
+sudo /usr/local/lib/allowcn/netopt.sh enable-all   # 一键全开
+sudo /usr/local/lib/allowcn/netopt.sh status       # 查看状态
+sudo /usr/local/lib/allowcn/netopt.sh rollback     # 一键回退到内核默认
+```
+
+> 说明:所有参数均为标准 Linux 内核项,已逐条审阅。原项目 GitHub 上的 `tcp.sh` 仅是引导器、真正逻辑运行时从第三方域名下载执行,出于安全考虑本项目改为等效的原生实现并致谢原作者。若你需要官方交互面板做精细调节,仍可自行运行 `bash <(curl -sL https://raw.githubusercontent.com/666shen/tcp-dashboard/main/tcp.sh)`。`sudo ./uninstall.sh --purge` 会连同这些内核优化一并回退。
 
 ## 无人值守 / 脚本化安装
 
