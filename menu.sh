@@ -82,10 +82,10 @@ do_install() {
   local def_ports="80,443" ports extra sched="30 4 * * *" ssh_ip ans all="0" scope_desc
 
   echo "保护范围:"
-  echo "  1) 仅指定端口(默认 80,443,SSH 不受影响,推荐)"
-  echo "  2) 所有端口(整机仅大陆可访问,含 SSH)"
+  echo "  1) 所有端口(整机仅大陆可访问,含 SSH,默认)"
+  echo "  2) 仅指定端口(如 80,443,SSH 不受影响)"
   read -rp "选择 [1]: " ans
-  case "${ans:-1}" in 2) all="1" ;; *) all="0" ;; esac
+  case "${ans:-1}" in 2) all="0" ;; *) all="1" ;; esac
 
   if [ "$all" = "1" ]; then
     ports="$def_ports"   # 保留但不生效

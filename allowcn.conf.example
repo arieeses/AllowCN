@@ -2,12 +2,13 @@
 # Shell syntax (this file is sourced by allowcn.sh). Restart is not needed;
 # the next scheduled/manual run picks up changes.
 
-# Protect EVERY port on the whole machine (1 = yes). When 1, only mainland-China
-# source IPs (plus ALLOW_EXTRA, loopback, and already-established connections)
-# can reach ANY port — including SSH. This overrides PROTECT_TCP/UDP_PORTS below.
-# ⚠ If you enable this, put your admin/SSH source IP in ALLOW_EXTRA first, or you
-#   will lock yourself out on the next login.
-PROTECT_ALL_PORTS="0"
+# Protect EVERY port on the whole machine (1 = yes). This is the DEFAULT: only
+# mainland-China source IPs (plus ALLOW_EXTRA, loopback, and already-established
+# connections) can reach ANY port — including SSH. Overrides PROTECT_TCP/UDP_PORTS.
+# ⚠ If you connect from a non-mainland IP, put it in ALLOW_EXTRA first (the
+#   installer auto-adds your current SSH IP), or you will be locked out.
+# Set to 0 to fall back to protecting only the specific ports listed below.
+PROTECT_ALL_PORTS="1"
 
 # TCP ports that will ONLY accept mainland-China source IPs (used only when
 # PROTECT_ALL_PORTS=0). Everything else on these ports is dropped. Leave SSH (22)

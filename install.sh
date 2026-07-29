@@ -95,12 +95,35 @@ touch "$LOG"
 # ---- safety banner ---------------------------------------------------------
 # shellcheck disable=SC1090
 . "$CONF"
+
+# Anti-lockout: default is whole-machine mode, so if the allowlist is empty and
+# we can see the current SSH client IP, auto-add it before applying any rules.
+if [ "${PROTECT_ALL_PORTS:-0}" = "1" ] && [ -z "${ALLOW_EXTRA:-}" ] && [ -n "${SSH_CONNECTION:-}" ]; then
+  ssh_ip="${SSH_CONNECTION%% *}"
+  if grep -qE '^ALLOW_EXTRA=' "$CONF"; then
+    sed -i "s|^ALLOW_EXTRA=.*|ALLOW_EXTRA=\"${ssh_ip}\"|" "$CONF"
+  else
+    echo "ALLOW_EXTRA=\"${ssh_ip}\"" >> "$CONF"
+  fi
+  ALLOW_EXTRA="$ssh_ip"
+  warn "anti-lockout: auto-added your SSH source IP ${ssh_ip} to ALLOW_EXTRA"
+fi
+
 warn "=============================================================="
-warn " Protected TCP ports : ${PROTECT_TCP_PORTS:-<none>}"
-warn " Protected UDP ports : ${PROTECT_UDP_PORTS:-<none>}"
+if [ "${PROTECT_ALL_PORTS:-0}" = "1" ]; then
+  warn " Scope : ALL ports — only mainland-China IPs reach this box (incl. SSH)"
+else
+  warn " Protected TCP ports : ${PROTECT_TCP_PORTS:-<none>}"
+  warn " Protected UDP ports : ${PROTECT_UDP_PORTS:-<none>}"
+  warn " SSH (port 22) is NOT protected — you stay reachable."
+fi
 warn " Extra allow CIDRs   : ${ALLOW_EXTRA:-<none>}"
-warn " SSH (port 22) is NOT protected by default — you stay reachable."
-warn " Edit $CONF then re-run 'allowcn' to change ports."
+if [ "${PROTECT_ALL_PORTS:-0}" = "1" ] && [ -z "${ALLOW_EXTRA:-}" ]; then
+  warn " ⚠ WHOLE-MACHINE mode with an EMPTY allowlist. If you connect from a"
+  warn "   non-mainland IP you will be locked out on next login. Set ALLOW_EXTRA"
+  warn "   in $CONF and re-run 'allowcn' NOW if that applies to you."
+fi
+warn " Edit $CONF then re-run 'allowcn' to change scope."
 warn "=============================================================="
 
 if [ "$RUN_NOW" -eq 1 ]; then

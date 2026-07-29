@@ -16,7 +16,7 @@ STATE_DIR="/var/lib/allowcn"
 # ---- defaults (overridable via the config file) ----------------------------
 MMDB_URL="https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-Country.mmdb"
 MMDB_URL_FALLBACK="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
-PROTECT_ALL_PORTS="0"        # 1 = 整机所有端口仅放行大陆(会覆盖下面的端口设置)
+PROTECT_ALL_PORTS="1"        # 1 = 整机所有端口仅放行大陆(默认;会覆盖下面的端口设置)
 PROTECT_TCP_PORTS="80,443"
 PROTECT_UDP_PORTS=""
 BLOCK_ACTION="DROP"          # DROP or REJECT

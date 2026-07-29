@@ -9,7 +9,7 @@
 - **原子更新**:用 `ipset swap` 热切换,更新期间不断流、不留空窗。
 - **IPv4 + IPv6**:同时处理 `iptables` 与 `ip6tables`。
 - **自动定期更新**:cron 每天拉取最新 mmdb;`@reboot` 重启后自动重建规则(规则/ipset 默认不持久,靠此保证重启仍生效)。
-- **防自锁**:默认只保护 `80,443`,**不碰 SSH(22)**;支持 `ALLOW_EXTRA` 永久放行你的管理 IP;更新前有网段数量下限校验,mmdb 异常时拒绝应用。
+- **防自锁**:默认全端口仅大陆时,安装器**自动把你当前 SSH 来源 IP 加入白名单**;`ALLOW_EXTRA` 可永久放行任意管理 IP;更新前有网段数量下限校验,mmdb 异常时拒绝应用。可随时切回「仅保护指定端口(默认 80,443)」。
 
 ## 工作原理
 
@@ -51,7 +51,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/arieeses/AllowCN/main/menu.s
    0) 退出
 ```
 
-选 **1 安装** 时会引导你设置:保护端口、自动更新周期,并**自动检测你的 SSH 来源 IP 询问是否加入白名单**,从源头避免把自己锁在门外。
+选 **1 安装** 时会引导你设置保护范围(**默认「所有端口仅大陆可访问」**,含 SSH)、自动更新周期,并**自动检测你的 SSH 来源 IP 加入白名单**,从源头避免把自己锁在门外。若只想保护 80/443,可在向导里改选「仅指定端口」。
 
 也可以先克隆再运行菜单:
 
@@ -86,7 +86,8 @@ sudo /usr/local/lib/allowcn/netopt.sh rollback     # 一键回退到内核默认
 ```bash
 git clone https://github.com/arieeses/AllowCN.git
 cd AllowCN
-sudo ./install.sh                        # 默认每天 04:30 更新,保护 80,443
+sudo ./install.sh                        # 默认:全端口仅大陆 + 每天 04:30 更新
+                                         # (自动把当前 SSH 来源 IP 加入白名单兜底)
 sudo ./install.sh --schedule "0 3 * * *" # 自定义 cron 周期
 sudo ./install.sh --no-run               # 只安装,暂不应用
 ```
@@ -97,7 +98,7 @@ sudo ./install.sh --no-run               # 只安装,暂不应用
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `PROTECT_ALL_PORTS` | `0` | 设为 `1` 时**整机所有端口**仅放行大陆(含 SSH),覆盖下面的端口设置。⚠ 开启前务必在 `ALLOW_EXTRA` 填好你的管理 IP,否则下次登录即被锁死。 |
+| `PROTECT_ALL_PORTS` | `1`(默认) | **整机所有端口**仅放行大陆(含 SSH),覆盖下面的端口设置。安装器会自动把你当前 SSH 来源 IP 写入 `ALLOW_EXTRA` 兜底;若你从非大陆 IP 登录,务必确认白名单已包含它。设为 `0` 可退回「只保护指定端口」。 |
 | `PROTECT_TCP_PORTS` | `80,443` | `PROTECT_ALL_PORTS=0` 时生效:只允许大陆访问的 TCP 端口,逗号分隔。**不要把 22 放进来**,除非你确定永远从大陆 IP 登录。 |
 | `PROTECT_UDP_PORTS` | 空 | 需要保护的 UDP 端口(如 QUIC 用 `443`)。 |
 | `BLOCK_ACTION` | `DROP` | 拦截动作:`DROP`(静默丢弃)或 `REJECT`(返回拒绝)。 |
