@@ -97,7 +97,8 @@ sudo ./install.sh --no-run               # 只安装,暂不应用
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `PROTECT_TCP_PORTS` | `80,443` | 只允许大陆访问的 TCP 端口,逗号分隔。**不要把 22 放进来**,除非你确定永远从大陆 IP 登录。 |
+| `PROTECT_ALL_PORTS` | `0` | 设为 `1` 时**整机所有端口**仅放行大陆(含 SSH),覆盖下面的端口设置。⚠ 开启前务必在 `ALLOW_EXTRA` 填好你的管理 IP,否则下次登录即被锁死。 |
+| `PROTECT_TCP_PORTS` | `80,443` | `PROTECT_ALL_PORTS=0` 时生效:只允许大陆访问的 TCP 端口,逗号分隔。**不要把 22 放进来**,除非你确定永远从大陆 IP 登录。 |
 | `PROTECT_UDP_PORTS` | 空 | 需要保护的 UDP 端口(如 QUIC 用 `443`)。 |
 | `BLOCK_ACTION` | `DROP` | 拦截动作:`DROP`(静默丢弃)或 `REJECT`(返回拒绝)。 |
 | `ENABLE_IPV6` | `1` | 是否同时对 IPv6 生效。 |

@@ -16,6 +16,7 @@ STATE_DIR="/var/lib/allowcn"
 # ---- defaults (overridable via the config file) ----------------------------
 MMDB_URL="https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-Country.mmdb"
 MMDB_URL_FALLBACK="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
+PROTECT_ALL_PORTS="0"        # 1 = 整机所有端口仅放行大陆(会覆盖下面的端口设置)
 PROTECT_TCP_PORTS="80,443"
 PROTECT_UDP_PORTS=""
 BLOCK_ACTION="DROP"          # DROP or REJECT
@@ -153,15 +154,21 @@ apply_rules() {
   $ipt -A "$CHAIN" -m set --match-set "$set" src -j ACCEPT
   $ipt -A "$CHAIN" -j "$BLOCK_ACTION"
 
-  # (re)hook protected ports into INPUT, removing any stale hooks first
+  # (re)hook into INPUT, removing any stale hooks first
   del_hooks "$ipt"
-  if [ -n "$PROTECT_TCP_PORTS" ]; then
-    $ipt -I INPUT -p tcp -m multiport --dports "$PROTECT_TCP_PORTS" -j "$CHAIN"
+  if [ "${PROTECT_ALL_PORTS:-0}" = "1" ]; then
+    # catch-all: every inbound packet on every port/protocol goes through ALLOWCN
+    $ipt -I INPUT -j "$CHAIN"
+    log "$ipt rules applied (ALL ports mainland-only, block=$BLOCK_ACTION)"
+  else
+    if [ -n "$PROTECT_TCP_PORTS" ]; then
+      $ipt -I INPUT -p tcp -m multiport --dports "$PROTECT_TCP_PORTS" -j "$CHAIN"
+    fi
+    if [ -n "$PROTECT_UDP_PORTS" ]; then
+      $ipt -I INPUT -p udp -m multiport --dports "$PROTECT_UDP_PORTS" -j "$CHAIN"
+    fi
+    log "$ipt rules applied (tcp=[$PROTECT_TCP_PORTS] udp=[$PROTECT_UDP_PORTS] block=$BLOCK_ACTION)"
   fi
-  if [ -n "$PROTECT_UDP_PORTS" ]; then
-    $ipt -I INPUT -p udp -m multiport --dports "$PROTECT_UDP_PORTS" -j "$CHAIN"
-  fi
-  log "$ipt rules applied (tcp=[$PROTECT_TCP_PORTS] udp=[$PROTECT_UDP_PORTS] block=$BLOCK_ACTION)"
 }
 
 # ---------------------------------------------------------------------------

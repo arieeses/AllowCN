@@ -79,36 +79,66 @@ detect_ssh_ip() { [ -n "${SSH_CONNECTION:-}" ] && echo "${SSH_CONNECTION%% *}"; 
 # ---------------------------------------------------------------------------
 do_install() {
   echo -e "${B}== 安装 / 重装 AllowCN ==${N}"
-  local def_ports="80,443" ports extra sched="30 4 * * *" ssh_ip ans
+  local def_ports="80,443" ports extra sched="30 4 * * *" ssh_ip ans all="0" scope_desc
 
-  read -rp "要仅放行大陆访问的 TCP 端口 [默认 ${def_ports}]: " ports
-  ports="${ports:-$def_ports}"
+  echo "保护范围:"
+  echo "  1) 仅指定端口(默认 80,443,SSH 不受影响,推荐)"
+  echo "  2) 所有端口(整机仅大陆可访问,含 SSH)"
+  read -rp "选择 [1]: " ans
+  case "${ans:-1}" in 2) all="1" ;; *) all="0" ;; esac
+
+  if [ "$all" = "1" ]; then
+    ports="$def_ports"   # 保留但不生效
+    scope_desc="所有端口(整机)"
+  else
+    read -rp "要仅放行大陆访问的 TCP 端口 [默认 ${def_ports}]: " ports
+    ports="${ports:-$def_ports}"
+    scope_desc="端口 ${ports}"
+  fi
 
   # 自动把当前 SSH 来源 IP 加入白名单,避免锁死
   ssh_ip="$(detect_ssh_ip)"
   extra=""
   if [ -n "$ssh_ip" ]; then
-    read -rp "检测到你的 SSH 来源 IP 为 ${ssh_ip},加入永久白名单? [Y/n]: " ans
+    if [ "$all" = "1" ]; then
+      warn "全端口模式下必须放行你的登录 IP,否则会被锁在门外。"
+      read -rp "把当前 SSH 来源 IP ${ssh_ip} 加入永久白名单? [强烈建议 Y/n]: " ans
+    else
+      read -rp "检测到你的 SSH 来源 IP 为 ${ssh_ip},加入永久白名单? [Y/n]: " ans
+    fi
     case "${ans:-Y}" in [Nn]*) : ;; *) extra="$ssh_ip" ;; esac
+  elif [ "$all" = "1" ]; then
+    warn "未检测到 SSH_CONNECTION(可能非 SSH 会话)。全端口模式下请务必手动填入你的管理 IP!"
   fi
   read -rp "额外永久放行的网段(空格分隔,可留空)[$extra]: " ans
   [ -n "$ans" ] && extra="$ans"
+
+  if [ "$all" = "1" ] && [ -z "$extra" ]; then
+    warn "⚠ 你选择了全端口模式但白名单为空 —— 一旦你当前的 SSH 断开,且你的 IP 不在大陆,将无法再登录!"
+    read -rp "确认无白名单继续? [y/N]: " ans
+    case "${ans:-N}" in [Yy]*) : ;; *) warn "已取消,请重新安装并设置白名单"; return ;; esac
+  fi
 
   read -rp "自动更新周期(cron 表达式)[默认每天 04:30 → ${sched}]: " ans
   [ -n "$ans" ] && sched="$ans"
 
   echo
-  warn "确认配置:保护端口=${ports}  白名单=[${extra:-无}]  周期=[${sched}]  (SSH 22 不受影响)"
+  warn "确认配置:保护范围=${scope_desc}  白名单=[${extra:-无}]  周期=[${sched}]"
   read -rp "开始安装? [Y/n]: " ans
   case "${ans:-Y}" in [Nn]*) warn "已取消"; return ;; esac
 
   # 先装(生成默认配置与文件),再按选择覆盖配置并应用
   bash "$REPO/install.sh" --schedule "$sched" --no-run || { err "安装失败"; return; }
+  set_conf PROTECT_ALL_PORTS "$all" "$CONF"
   set_conf PROTECT_TCP_PORTS "$ports" "$CONF"
   set_conf ALLOW_EXTRA "$extra" "$CONF"
   info "应用规则中..."
   "$LIB" 2>&1 | tee -a "$LOG"
-  info "完成。仅大陆 IP 可访问端口 ${ports}。"
+  if [ "$all" = "1" ]; then
+    info "完成。整机所有端口现在仅大陆 IP(及白名单)可访问。"
+  else
+    info "完成。仅大陆 IP 可访问端口 ${ports}。"
+  fi
 }
 
 do_update() {
@@ -128,11 +158,17 @@ do_edit_conf() {
       "${EDITOR:-$(command -v nano || command -v vi)}" "$CONF"
       ;;
     *)
-      local ports action ipv6 extra ans
-      read -rp "保护 TCP 端口 [$(get_conf PROTECT_TCP_PORTS)]: " ports
+      local allp ports action ipv6 extra ans
+      read -rp "保护所有端口 1/0 [$(get_conf PROTECT_ALL_PORTS)]: " allp
+      read -rp "保护 TCP 端口(仅 PROTECT_ALL_PORTS=0 时生效) [$(get_conf PROTECT_TCP_PORTS)]: " ports
       read -rp "拦截动作 DROP/REJECT [$(get_conf BLOCK_ACTION)]: " action
       read -rp "启用 IPv6 1/0 [$(get_conf ENABLE_IPV6)]: " ipv6
       read -rp "永久白名单网段 [$(get_conf ALLOW_EXTRA)]: " extra
+      if [ "$allp" = "1" ]; then
+        local cur_extra="${extra:-$(get_conf ALLOW_EXTRA)}"
+        [ -z "$cur_extra" ] && warn "⚠ 开启全端口但白名单为空,可能把自己锁死!建议先填管理 IP。"
+      fi
+      [ -n "$allp" ]   && set_conf PROTECT_ALL_PORTS "$allp" "$CONF"
       [ -n "$ports" ]  && set_conf PROTECT_TCP_PORTS "$ports" "$CONF"
       [ -n "$action" ] && set_conf BLOCK_ACTION "$action" "$CONF"
       [ -n "$ipv6" ]   && set_conf ENABLE_IPV6 "$ipv6" "$CONF"
