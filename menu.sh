@@ -90,6 +90,8 @@ do_install() {
   if [ "$all" = "1" ]; then
     ports="$def_ports"   # 保留但不生效
     scope_desc="所有端口(整机)"
+    info "注意:22 端口(SSH)默认仍对所有来源开放,不会被锁死。"
+    info "      如果你的 SSH 不在 22,装完请改配置 ALWAYS_OPEN_TCP_PORTS。"
   else
     read -rp "要仅放行大陆访问的 TCP 端口 [默认 ${def_ports}]: " ports
     ports="${ports:-$def_ports}"
@@ -114,9 +116,8 @@ do_install() {
   [ -n "$ans" ] && extra="$ans"
 
   if [ "$all" = "1" ] && [ -z "$extra" ]; then
-    warn "⚠ 你选择了全端口模式但白名单为空 —— 一旦你当前的 SSH 断开,且你的 IP 不在大陆,将无法再登录!"
-    read -rp "确认无白名单继续? [y/N]: " ans
-    case "${ans:-N}" in [Yy]*) : ;; *) warn "已取消,请重新安装并设置白名单"; return ;; esac
+    warn "白名单为空 —— 你将依赖「22 端口对所有来源开放」来保证 SSH 可达。"
+    warn "若你的 SSH 端口不是 22,请务必装完立即设置 ALWAYS_OPEN_TCP_PORTS 或 ALLOW_EXTRA。"
   fi
 
   read -rp "自动更新周期(cron 表达式)[默认每天 04:30 → ${sched}]: " ans
@@ -158,9 +159,10 @@ do_edit_conf() {
       "${EDITOR:-$(command -v nano || command -v vi)}" "$CONF"
       ;;
     *)
-      local allp ports action ipv6 extra ans
+      local allp ports openp action ipv6 extra ans
       read -rp "保护所有端口 1/0 [$(get_conf PROTECT_ALL_PORTS)]: " allp
       read -rp "保护 TCP 端口(仅 PROTECT_ALL_PORTS=0 时生效) [$(get_conf PROTECT_TCP_PORTS)]: " ports
+      read -rp "无条件放行的 TCP 端口(对所有来源,如 SSH) [$(get_conf ALWAYS_OPEN_TCP_PORTS)]: " openp
       read -rp "拦截动作 DROP/REJECT [$(get_conf BLOCK_ACTION)]: " action
       read -rp "启用 IPv6 1/0 [$(get_conf ENABLE_IPV6)]: " ipv6
       read -rp "永久白名单网段 [$(get_conf ALLOW_EXTRA)]: " extra
@@ -170,6 +172,7 @@ do_edit_conf() {
       fi
       [ -n "$allp" ]   && set_conf PROTECT_ALL_PORTS "$allp" "$CONF"
       [ -n "$ports" ]  && set_conf PROTECT_TCP_PORTS "$ports" "$CONF"
+      [ -n "$openp" ]  && set_conf ALWAYS_OPEN_TCP_PORTS "$openp" "$CONF"
       [ -n "$action" ] && set_conf BLOCK_ACTION "$action" "$CONF"
       [ -n "$ipv6" ]   && set_conf ENABLE_IPV6 "$ipv6" "$CONF"
       [ -n "$extra" ]  && set_conf ALLOW_EXTRA "$extra" "$CONF"

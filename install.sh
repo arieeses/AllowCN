@@ -118,10 +118,11 @@ else
   warn " SSH (port 22) is NOT protected — you stay reachable."
 fi
 warn " Extra allow CIDRs   : ${ALLOW_EXTRA:-<none>}"
-if [ "${PROTECT_ALL_PORTS:-0}" = "1" ] && [ -z "${ALLOW_EXTRA:-}" ]; then
-  warn " ⚠ WHOLE-MACHINE mode with an EMPTY allowlist. If you connect from a"
-  warn "   non-mainland IP you will be locked out on next login. Set ALLOW_EXTRA"
-  warn "   in $CONF and re-run 'allowcn' NOW if that applies to you."
+warn " Always-open TCP     : ${ALWAYS_OPEN_TCP_PORTS:-<none>}  (any source — e.g. SSH)"
+if [ "${PROTECT_ALL_PORTS:-0}" = "1" ] && [ -z "${ALWAYS_OPEN_TCP_PORTS:-}" ] && [ -z "${ALLOW_EXTRA:-}" ]; then
+  warn " ⚠ WHOLE-MACHINE mode with NO always-open ports and an EMPTY allowlist."
+  warn "   A non-mainland login will be locked out. Set ALWAYS_OPEN_TCP_PORTS (e.g."
+  warn "   your SSH port) or ALLOW_EXTRA in $CONF and re-run 'allowcn' NOW."
 fi
 warn " Edit $CONF then re-run 'allowcn' to change scope."
 warn "=============================================================="

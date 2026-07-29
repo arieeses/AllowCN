@@ -19,6 +19,7 @@ MMDB_URL_FALLBACK="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-
 PROTECT_ALL_PORTS="1"        # 1 = 整机所有端口仅放行大陆(默认;会覆盖下面的端口设置)
 PROTECT_TCP_PORTS="80,443"
 PROTECT_UDP_PORTS=""
+ALWAYS_OPEN_TCP_PORTS="22"   # 无条件对所有来源放行的 TCP 端口(默认放行 SSH,防锁死)
 BLOCK_ACTION="DROP"          # DROP or REJECT
 ENABLE_IPV6="1"
 ALLOW_EXTRA=""               # space-separated extra allow CIDRs (e.g. your admin IP)
@@ -151,6 +152,10 @@ apply_rules() {
   $ipt -N "$CHAIN" 2>/dev/null || $ipt -F "$CHAIN"
   $ipt -A "$CHAIN" -i lo -j ACCEPT
   $ipt -A "$CHAIN" -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+  # unconditionally open ports (any source, exempt from geo filter), e.g. SSH
+  if [ -n "${ALWAYS_OPEN_TCP_PORTS:-}" ]; then
+    $ipt -A "$CHAIN" -p tcp -m multiport --dports "$ALWAYS_OPEN_TCP_PORTS" -j ACCEPT
+  fi
   $ipt -A "$CHAIN" -m set --match-set "$set" src -j ACCEPT
   $ipt -A "$CHAIN" -j "$BLOCK_ACTION"
 
@@ -159,7 +164,7 @@ apply_rules() {
   if [ "${PROTECT_ALL_PORTS:-0}" = "1" ]; then
     # catch-all: every inbound packet on every port/protocol goes through ALLOWCN
     $ipt -I INPUT -j "$CHAIN"
-    log "$ipt rules applied (ALL ports mainland-only, block=$BLOCK_ACTION)"
+    log "$ipt rules applied (ALL ports mainland-only, always-open tcp=[${ALWAYS_OPEN_TCP_PORTS:-none}], block=$BLOCK_ACTION)"
   else
     if [ -n "$PROTECT_TCP_PORTS" ]; then
       $ipt -I INPUT -p tcp -m multiport --dports "$PROTECT_TCP_PORTS" -j "$CHAIN"

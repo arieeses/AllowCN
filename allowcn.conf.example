@@ -18,6 +18,13 @@ PROTECT_TCP_PORTS="80,443"
 # UDP ports to protect the same way (e.g. "443" for HTTP/3/QUIC). Empty = none.
 PROTECT_UDP_PORTS=""
 
+# TCP ports that stay open to EVERY source, exempt from the mainland-only filter.
+# Default keeps SSH (22) reachable worldwide so you can never be locked out — even
+# in whole-machine mode. Comma-separated. Empty = no exemptions (NOT recommended
+# unless your SSH IP is in ALLOW_EXTRA). If your SSH runs on a custom port, list it
+# here (e.g. "22,2222").
+ALWAYS_OPEN_TCP_PORTS="22"
+
 # What to do with blocked traffic: DROP (silent) or REJECT (send refusal).
 BLOCK_ACTION="DROP"
 
