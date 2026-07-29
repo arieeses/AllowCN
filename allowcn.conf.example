@@ -1,0 +1,30 @@
+# AllowCN configuration — installed to /etc/allowcn/allowcn.conf
+# Shell syntax (this file is sourced by allowcn.sh). Restart is not needed;
+# the next scheduled/manual run picks up changes.
+
+# TCP ports that will ONLY accept mainland-China source IPs.
+# Everything else on these ports is dropped. Leave SSH (22) OUT of this list
+# unless you are certain you always connect from a mainland-China IP.
+PROTECT_TCP_PORTS="80,443"
+
+# UDP ports to protect the same way (e.g. "443" for HTTP/3/QUIC). Empty = none.
+PROTECT_UDP_PORTS=""
+
+# What to do with blocked traffic: DROP (silent) or REJECT (send refusal).
+BLOCK_ACTION="DROP"
+
+# Enforce on IPv6 as well (1 = yes, 0 = IPv4 only).
+ENABLE_IPV6="1"
+
+# Always-allowed extra source CIDRs regardless of geography — e.g. your office
+# or a foreign admin box so you never lock yourself out. Space-separated,
+# IPv4 and IPv6 both accepted. Example: ALLOW_EXTRA="203.0.113.7 2001:db8::/48"
+ALLOW_EXTRA=""
+
+# Safety floor: abort the run if fewer than this many CN IPv4 networks are
+# extracted (guards against a corrupt/empty mmdb wiping your allow list).
+MIN_CN_V4="1000"
+
+# Upstream mmdb source (P3TERX/GeoLite.mmdb, 'download' branch).
+MMDB_URL="https://raw.githubusercontent.com/P3TERX/GeoLite.mmdb/download/GeoLite2-Country.mmdb"
+MMDB_URL_FALLBACK="https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"

@@ -1,0 +1,9 @@
+# runtime data / downloaded databases — never commit these
+*.mmdb
+cn_ipv4.txt
+cn_ipv6.txt
+*.log
+
+# python cache
+__pycache__/
+*.pyc
